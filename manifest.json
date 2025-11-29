@@ -5,7 +5,7 @@
 	"minAppVersion": "0.15.0",
 	"description": "Obsidian plugin for hiding chosen files in the File Explorer.",
 	"author": "Filip Tartott",
-	"authorUrl": "",
+	"authorUrl": "https://github.com/filiptartott",
 	"fundingUrl": "",
 	"isDesktopOnly": true
 }
