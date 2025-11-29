@@ -1,0 +1,11 @@
+{
+	"id": "hide-files",
+	"name": "Hide Files",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Obsidian plugin for hiding chosen files in the File Explorer.",
+	"author": "Filip Tartott",
+	"authorUrl": "",
+	"fundingUrl": "",
+	"isDesktopOnly": true
+}
