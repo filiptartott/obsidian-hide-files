@@ -1,139 +1,229 @@
 import {
 	App,
 	ButtonComponent,
-	Notice,
 	PluginSettingTab,
 	Setting,
 	TextComponent,
 } from "obsidian";
 import HideFilePlugin from "./main";
-import { HiddenFile } from "./types";
+import { HiddenItem } from "./types";
+import { HideItems } from "./HideItems";
 
 export default class HideFileSettingTab extends PluginSettingTab {
-	plugin: HideFilePlugin;
-	listContainer: HTMLDivElement | null = null;
-	newItemNameComponent: TextComponent | null = null;
-	addButton: ButtonComponent | null = null;
-	newItemName = "";
+	hideFiles: HideItems;
 
-	constructor(app: App, plugin: HideFilePlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
+	filesListContainer?: HTMLDivElement;
+	foldersListContainer?: HTMLDivElement;
+	fileNameComponent?: TextComponent;
+	folderNameComponent?: TextComponent;
+	addFileButton?: ButtonComponent;
+	addFolderButton?: ButtonComponent;
+
+	public constructor(app: App, hideFiles: HideFilePlugin) {
+		super(app, hideFiles);
+		this.hideFiles = hideFiles;
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
+	public display() {
+		const container = this.containerEl;
+		container.empty();
 
-		containerEl.createEl("h3", { text: "Hidden Files" });
+		container.createEl("h3", { text: "Hidden Files" });
+		this.filesListContainer = container.createDiv("hidden-files-list");
+		this.displayFilesList();
+		this.createAddFileSetting(container);
 
-		this.listContainer = containerEl.createDiv("hidden-file-list");
+		container.createEl("h3", { text: "Hidden Folders" });
+		this.foldersListContainer = container.createDiv("hidden-folders-list");
+		this.displayFoldersList();
+		this.createAddFolderSetting(container);
+	}
 
-		new Setting(containerEl)
+	private displayFilesList() {
+		if (!this.filesListContainer) {
+			return;
+		}
+
+		const allFileNames = this.hideFiles.getAllFileNames();
+
+		HideFileSettingTab.createItemsList(
+			this.filesListContainer,
+			this.hideFiles.getHiddenFiles(),
+			allFileNames,
+			(name, hidden) => this.onFileHiddenChange(name, hidden),
+			(name) => this.onFileRemoveClick(name)
+		);
+	}
+
+	private displayFoldersList() {
+		if (!this.foldersListContainer) {
+			return;
+		}
+
+		const allFolderNames = this.hideFiles.getAllFolderNames();
+
+		HideFileSettingTab.createItemsList(
+			this.foldersListContainer,
+			this.hideFiles.getHiddenFolders(),
+			allFolderNames,
+			(name, hidden) => this.onFolderHiddenChange(name, hidden),
+			(name) => this.onFolderRemoveClick(name)
+		);
+	}
+
+	private createAddFileSetting(container: HTMLElement) {
+		HideFileSettingTab.createAddItemSetting(
+			container,
+			"Add file:",
+			"note.md",
+			(name) => this.onFileNameChange(name),
+			() => this.onAddFileClick(),
+			(textComponent) => {
+				this.fileNameComponent = textComponent;
+			},
+			(buttonComponent) => {
+				this.addFileButton = buttonComponent;
+			}
+		);
+	}
+
+	private createAddFolderSetting(container: HTMLElement) {
+		HideFileSettingTab.createAddItemSetting(
+			container,
+			"Add folder:",
+			"folder",
+			(name) => this.onFolderNameChange(name),
+			() => this.onAddFolderClick(),
+			(textComponent) => {
+				this.folderNameComponent = textComponent;
+			},
+			(buttonComponent) => {
+				this.addFolderButton = buttonComponent;
+			}
+		);
+	}
+
+	private onFileHiddenChange(name: string, hidden: boolean) {
+		this.hideFiles.changeFileHidden(name, hidden, () => {
+			this.displayFilesList();
+		});
+	}
+
+	private onFolderHiddenChange(name: string, hidden: boolean) {
+		this.hideFiles.changeFolderHidden(name, hidden, () => {
+			this.displayFoldersList();
+		});
+	}
+
+	private onFileRemoveClick(name: string) {
+		this.hideFiles.removeFile(name, () => {
+			this.displayFilesList();
+		});
+	}
+
+	private onFolderRemoveClick(name: string) {
+		this.hideFiles.removeFolder(name, () => {
+			this.displayFoldersList();
+		});
+	}
+
+	private onFileNameChange(name: string) {
+		this.addFileButton?.setDisabled(HideFileSettingTab.isNameEmpty(name));
+	}
+
+	private onFolderNameChange(name: string) {
+		this.addFolderButton?.setDisabled(HideFileSettingTab.isNameEmpty(name));
+	}
+
+	private onAddFileClick() {
+		const name = HideFileSettingTab.getTextComponentValue(
+			this.fileNameComponent
+		);
+
+		this.hideFiles.addFile(name, () => {
+			this.fileNameComponent?.setValue("");
+			this.addFileButton?.setDisabled(true);
+			this.displayFilesList();
+		});
+	}
+
+	private onAddFolderClick() {
+		const name = HideFileSettingTab.getTextComponentValue(
+			this.folderNameComponent
+		);
+
+		this.hideFiles.addFolder(name, () => {
+			this.folderNameComponent?.setValue("");
+			this.addFolderButton?.setDisabled(true);
+			this.displayFoldersList();
+		});
+	}
+
+	private static createAddItemSetting(
+		container: HTMLElement,
+		description: string,
+		placeholder: string,
+		onNameChange: (name: string) => void,
+		onAddClick: () => void,
+		onTextCreated: (textComponent: TextComponent) => void,
+		onButtonCreated: (buttonComponent: ButtonComponent) => void
+	) {
+		new Setting(container)
 			.addText((text) => {
-				this.newItemNameComponent = text;
-				text.setValue(this.newItemName)
-					.setPlaceholder("note.md")
-					.onChange((value) => {
-						this.onNewItemNameChanged(value);
-					});
+				text.setPlaceholder(placeholder).onChange(onNameChange);
+				onTextCreated(text);
 			})
-            .setDesc("Add file:")
+			.setDesc(description)
 			.addButton((button) => {
-				this.addButton = button;
 				button
 					.setButtonText("Add")
 					.setDisabled(true)
 					.setCta()
-					.onClick(async () => {
-						await this.onAddItemClick(this.newItemName);
-					});
+					.onClick(onAddClick);
+				onButtonCreated(button);
 			});
-
-		this.displayList();
 	}
 
-	displayList() {
-		if (!this.listContainer || !this.plugin.settings) {
-			return;
-		}
-
-		const listContainer: HTMLDivElement = this.listContainer;
+	private static createItemsList(
+		listContainer: HTMLElement,
+		hiddenItems: HiddenItem[],
+		allItems: string[],
+		onHiddenChange: (name: string, hidden: boolean) => void,
+		onItemRemove: (name: string) => void
+	) {
 		listContainer.empty();
-        
-        const allFiles: string[] = this.plugin.getAllFileNames();
-        const hiddenFiles = this.plugin.settings.hiddenFiles;
 
-        for (const hiddenFile of hiddenFiles) {
-            const matches = allFiles.filter((value) => value === hiddenFile.name);
-            matches.length;
+		for (const hiddenItem of hiddenItems) {
+			const matches = allItems.filter((name) => name === hiddenItem.name);
+			matches.length;
 
-            new Setting(listContainer)
-				.setName(hiddenFile.name)
+			new Setting(listContainer)
+				.setName(hiddenItem.name)
 				.setDesc(`matches found: ${matches.length}`)
 				.addToggle((toggle) => {
 					toggle
-						.setValue(hiddenFile.hidden)
-                        .setTooltip("Hidden")
-						.onChange(async (hidden: boolean) => {
-							await this.onItemHiddenToggled(hiddenFile, hidden);
+						.setValue(hiddenItem.hidden)
+						.setTooltip("Hidden")
+						.onChange((hidden: boolean) => {
+							onHiddenChange(hiddenItem.name, hidden);
 						});
 				})
 				.addExtraButton((button) => {
 					button
 						.setIcon("trash")
 						.setTooltip("Remove")
-						.onClick(async () => {
-							await this.onRemoveItemClick(hiddenFile);
+						.onClick(() => {
+							onItemRemove(hiddenItem.name);
 						});
 				});
-        }
-	}
-
-	onNewItemNameChanged(fileName: string) {
-		this.newItemName = fileName.trim();
-		const isEmpty = this.newItemName.length === 0;
-		this.addButton?.setDisabled(isEmpty);
-	}
-
-	async saveAndApplySettings() {
-		await this.plugin.saveAndApplySettings();
-		this.displayList();
-	}
-
-	async onItemHiddenToggled(hiddenFile: HiddenFile, hidden: boolean) {
-		hiddenFile.hidden = hidden;
-		await this.saveAndApplySettings();
-	}
-
-	async onRemoveItemClick(hiddenFile: HiddenFile) {
-		this.plugin.settings?.hiddenFiles.remove(hiddenFile);
-		await this.saveAndApplySettings();
-	}
-
-	async onAddItemClick(fileName: string) {
-		const newFileName = fileName.contains(".")
-			? fileName
-			: fileName + ".md";
-
-		const foundHiddenFile = this.plugin.settings?.hiddenFiles.find(
-			(hiddenFile) => hiddenFile.name === newFileName
-		);
-		if (foundHiddenFile) {
-			new Notice("This item already exists.");
-			return;
 		}
+	}
 
-		const newHiddenFile: HiddenFile = {
-			name: newFileName,
-			hidden: true,
-		};
+	private static getTextComponentValue(textComponent?: TextComponent) {
+		return textComponent?.getValue().trim() ?? "";
+	}
 
-		this.plugin.settings?.hiddenFiles.push(newHiddenFile);
-		this.newItemNameComponent?.setValue("");
-		this.newItemName = "";
-		this.addButton?.setDisabled(true);
-
-		await this.saveAndApplySettings();
+	private static isNameEmpty(name: string) {
+		return name.trim().length === 0;
 	}
 }

@@ -1,16 +1,18 @@
-import { Plugin, View } from "obsidian";
+import { Notice, Plugin, TFile, TFolder, View } from "obsidian";
 import HideFileSettingTab from "./HideFileSettingTab";
-import { HideFileSettings } from "./types";
+import { HiddenItem, HideFileSettings } from "./types";
+import { HideItems } from "./HideItems";
 
 const DEFAULT_SETTINGS: HideFileSettings = {
 	hiddenFiles: [],
+	hiddenFolders: [],
 };
 
-export default class HideFilePlugin extends Plugin {
+export default class HideFilePlugin extends Plugin implements HideItems {
 	settings: HideFileSettings | null = null;
 	fileExplorerView: View | null = null;
 
-	async onload() {
+	public async onload() {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
@@ -38,7 +40,7 @@ export default class HideFilePlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => this.updateFileExplorer());
 	}
 
-	onunload() {
+	public onunload() {
 		this.settings = null;
 		this.updateFileExplorer();
 	}
@@ -48,23 +50,8 @@ export default class HideFilePlugin extends Plugin {
 		this.updateFileExplorer();
 	}
 
-	public getAllFileNames(): string[] {
-		// @ts-ignore
-		const fileItems = this.fileExplorerView?.fileItems;
-
-		const fileNames: string[] = [];
-		for (const key in fileItems) {
-			const item = fileItems[key];
-			if (item.file) {
-				fileNames.push(item.file.name);
-			}
-		}
-		return fileNames;
-	}
-
 	private updateFileExplorer() {
-		// @ts-ignore
-		const fileItems = this.fileExplorerView?.fileItems;
+		const fileItems = this.getFileExplorerItems();
 
 		for (const key in fileItems) {
 			const item = fileItems[key];
@@ -73,11 +60,149 @@ export default class HideFilePlugin extends Plugin {
 				continue;
 			}
 
-			const entry = this.settings?.hiddenFiles.find(
-				(file) => file.name === item.file.name
+			const itemName = item.file.name;
+			const isFolder = item.file instanceof TFolder;
+
+			const hiddenItems = isFolder
+				? this.settings?.hiddenFolders
+				: this.settings?.hiddenFiles;
+
+			const hiddenItem = hiddenItems?.find(
+				(file) => file.name === itemName
 			);
 
-			item.el.style.display = entry?.hidden ? "none" : "";
+			item.el.style.display = hiddenItem?.hidden ? "none" : "";
 		}
+	}
+
+	public addFile(name: string, callback: () => void) {
+		HideFilePlugin.addItem(name, callback, this.getHiddenFiles());
+		this.saveAndApplySettings();
+	}
+
+	public addFolder(name: string, callback: () => void) {
+		HideFilePlugin.addItem(name, callback, this.getHiddenFolders());
+		this.saveAndApplySettings();
+	}
+
+	private static addItem(
+		name: string,
+		callback: () => void,
+		hiddenItems: HiddenItem[]
+	) {
+		if (name.length === 0) {
+			new Notice("Item name is empty.");
+			return;
+		}
+
+		const foundItem = hiddenItems.find((item) => item.name === name);
+		if (foundItem) {
+			new Notice(`Item with name "${name}" already exists.`);
+			return;
+		}
+
+		const newHiddenItem: HiddenItem = {
+			name,
+			hidden: true,
+		};
+		hiddenItems.push(newHiddenItem);
+		callback();
+	}
+
+	public removeFile(name: string, callback: () => void) {
+		if (!this.settings) {
+			return;
+		}
+
+		this.settings.hiddenFiles = this.settings.hiddenFiles.filter(
+			(item) => item.name !== name
+		);
+
+		this.saveAndApplySettings();
+		callback();
+	}
+
+	public removeFolder(name: string, callback: () => void) {
+		if (!this.settings) {
+			return;
+		}
+
+		this.settings.hiddenFolders = this.settings.hiddenFolders.filter(
+			(item) => item.name !== name
+		);
+
+		this.saveAndApplySettings();
+		callback();
+	}
+
+	public changeFileHidden(
+		name: string,
+		hidden: boolean,
+		callback: () => void
+	) {
+		HideFilePlugin.changeItemHidden(name, hidden, this.getHiddenFiles());
+		this.saveAndApplySettings();
+		callback();
+	}
+
+	public changeFolderHidden(
+		name: string,
+		hidden: boolean,
+		callback: () => void
+	) {
+		HideFilePlugin.changeItemHidden(name, hidden, this.getHiddenFolders());
+		this.saveAndApplySettings();
+		callback();
+	}
+
+	private static changeItemHidden(
+		name: string,
+		hidden: boolean,
+		hiddenItems: HiddenItem[]
+	) {
+		const item = hiddenItems.find((item) => item.name === name);
+
+		if (item) {
+			item.hidden = hidden;
+		}
+	}
+
+	public getHiddenFiles(): HiddenItem[] {
+		return this.settings?.hiddenFiles ?? [];
+	}
+
+	public getHiddenFolders(): HiddenItem[] {
+		return this.settings?.hiddenFolders ?? [];
+	}
+
+	public getAllFileNames(): string[] {
+		const fileExplorerItems = this.getFileExplorerItems();
+
+		const fileNames: string[] = [];
+		for (const key in fileExplorerItems) {
+			const item = fileExplorerItems[key];
+			if (item.file instanceof TFile) {
+				fileNames.push(item.file.name);
+			}
+		}
+		return fileNames;
+	}
+
+	public getAllFolderNames(): string[] {
+		const fileExplorerItems = this.getFileExplorerItems();
+		
+		const folderNames: string[] = [];
+		for (const key in fileExplorerItems) {
+			const item = fileExplorerItems[key];
+			if (item.file instanceof TFolder) {
+				folderNames.push(item.file.name);
+			}
+		}
+		return folderNames;
+	}
+
+	private getFileExplorerItems() {
+		// @ts-ignore
+		return this.fileExplorerView?.fileItems;
 	}
 }
