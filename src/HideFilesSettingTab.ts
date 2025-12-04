@@ -4,13 +4,13 @@ import {
 	PluginSettingTab,
 	Setting,
 	TextComponent,
+	Plugin,
 } from "obsidian";
-import HideFilePlugin from "./main";
 import { HiddenItem } from "./types";
 import { HideItems } from "./HideItems";
 
-export default class HideFileSettingTab extends PluginSettingTab {
-	hideFiles: HideItems;
+export default class HideFilesSettingTab extends PluginSettingTab {
+	hideItems: HideItems;
 
 	filesListContainer?: HTMLDivElement;
 	foldersListContainer?: HTMLDivElement;
@@ -19,9 +19,9 @@ export default class HideFileSettingTab extends PluginSettingTab {
 	addFileButton?: ButtonComponent;
 	addFolderButton?: ButtonComponent;
 
-	public constructor(app: App, hideFiles: HideFilePlugin) {
-		super(app, hideFiles);
-		this.hideFiles = hideFiles;
+	public constructor(app: App, plugin: Plugin, hideItems: HideItems) {
+		super(app, plugin);
+		this.hideItems = hideItems;
 	}
 
 	public display() {
@@ -44,11 +44,11 @@ export default class HideFileSettingTab extends PluginSettingTab {
 			return;
 		}
 
-		const allFileNames = this.hideFiles.getAllFileNames();
+		const allFileNames = this.hideItems.getAllFileNames();
 
-		HideFileSettingTab.createItemsList(
+		HideFilesSettingTab.createItemsList(
 			this.filesListContainer,
-			this.hideFiles.getHiddenFiles(),
+			this.hideItems.getHiddenFiles(),
 			allFileNames,
 			(name, hidden) => this.onFileHiddenChange(name, hidden),
 			(name) => this.onFileRemoveClick(name)
@@ -60,11 +60,11 @@ export default class HideFileSettingTab extends PluginSettingTab {
 			return;
 		}
 
-		const allFolderNames = this.hideFiles.getAllFolderNames();
+		const allFolderNames = this.hideItems.getAllFolderNames();
 
-		HideFileSettingTab.createItemsList(
+		HideFilesSettingTab.createItemsList(
 			this.foldersListContainer,
-			this.hideFiles.getHiddenFolders(),
+			this.hideItems.getHiddenFolders(),
 			allFolderNames,
 			(name, hidden) => this.onFolderHiddenChange(name, hidden),
 			(name) => this.onFolderRemoveClick(name)
@@ -72,7 +72,7 @@ export default class HideFileSettingTab extends PluginSettingTab {
 	}
 
 	private createAddFileSetting(container: HTMLElement) {
-		HideFileSettingTab.createAddItemSetting(
+		HideFilesSettingTab.createAddItemSetting(
 			container,
 			"Add file:",
 			"note.md",
@@ -88,7 +88,7 @@ export default class HideFileSettingTab extends PluginSettingTab {
 	}
 
 	private createAddFolderSetting(container: HTMLElement) {
-		HideFileSettingTab.createAddItemSetting(
+		HideFilesSettingTab.createAddItemSetting(
 			container,
 			"Add folder:",
 			"folder",
@@ -104,43 +104,43 @@ export default class HideFileSettingTab extends PluginSettingTab {
 	}
 
 	private onFileHiddenChange(name: string, hidden: boolean) {
-		this.hideFiles.changeFileHidden(name, hidden, () => {
+		this.hideItems.changeFileHidden(name, hidden, () => {
 			this.displayFilesList();
 		});
 	}
 
 	private onFolderHiddenChange(name: string, hidden: boolean) {
-		this.hideFiles.changeFolderHidden(name, hidden, () => {
+		this.hideItems.changeFolderHidden(name, hidden, () => {
 			this.displayFoldersList();
 		});
 	}
 
 	private onFileRemoveClick(name: string) {
-		this.hideFiles.removeFile(name, () => {
+		this.hideItems.removeFile(name, () => {
 			this.displayFilesList();
 		});
 	}
 
 	private onFolderRemoveClick(name: string) {
-		this.hideFiles.removeFolder(name, () => {
+		this.hideItems.removeFolder(name, () => {
 			this.displayFoldersList();
 		});
 	}
 
 	private onFileNameChange(name: string) {
-		this.addFileButton?.setDisabled(HideFileSettingTab.isNameEmpty(name));
+		this.addFileButton?.setDisabled(HideFilesSettingTab.isNameEmpty(name));
 	}
 
 	private onFolderNameChange(name: string) {
-		this.addFolderButton?.setDisabled(HideFileSettingTab.isNameEmpty(name));
+		this.addFolderButton?.setDisabled(HideFilesSettingTab.isNameEmpty(name));
 	}
 
 	private onAddFileClick() {
-		const name = HideFileSettingTab.getTextComponentValue(
+		const name = HideFilesSettingTab.getTextComponentValue(
 			this.fileNameComponent
 		);
 
-		this.hideFiles.addFile(name, () => {
+		this.hideItems.addFile(name, () => {
 			this.fileNameComponent?.setValue("");
 			this.addFileButton?.setDisabled(true);
 			this.displayFilesList();
@@ -148,11 +148,11 @@ export default class HideFileSettingTab extends PluginSettingTab {
 	}
 
 	private onAddFolderClick() {
-		const name = HideFileSettingTab.getTextComponentValue(
+		const name = HideFilesSettingTab.getTextComponentValue(
 			this.folderNameComponent
 		);
 
-		this.hideFiles.addFolder(name, () => {
+		this.hideItems.addFolder(name, () => {
 			this.folderNameComponent?.setValue("");
 			this.addFolderButton?.setDisabled(true);
 			this.displayFoldersList();
@@ -197,7 +197,7 @@ export default class HideFileSettingTab extends PluginSettingTab {
 			const matches = allItems.filter((name) => name === hiddenItem.name);
 			matches.length;
 
-			new Setting(listContainer)
+			const setting = new Setting(listContainer)
 				.setName(hiddenItem.name)
 				.setDesc(`matches found: ${matches.length}`)
 				.addToggle((toggle) => {
@@ -216,6 +216,10 @@ export default class HideFileSettingTab extends PluginSettingTab {
 							onItemRemove(hiddenItem.name);
 						});
 				});
+
+			if (matches.length === 0) {
+				setting.descEl.style.color = "var(--text-error)";       // red
+			}
 		}
 	}
 

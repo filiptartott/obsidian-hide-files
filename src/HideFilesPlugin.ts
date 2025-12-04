@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile, TFolder, View } from "obsidian";
-import HideFileSettingTab from "./HideFileSettingTab";
+import HideFilesSettingTab from "./HideFilesSettingTab";
 import { HiddenItem, HideFileSettings } from "./types";
 import { HideItems } from "./HideItems";
 
@@ -8,7 +8,7 @@ const DEFAULT_SETTINGS: HideFileSettings = {
 	hiddenFolders: [],
 };
 
-export default class HideFilePlugin extends Plugin implements HideItems {
+export default class HideFilesPlugin extends Plugin implements HideItems {
 	settings: HideFileSettings | null = null;
 	fileExplorerView: View | null = null;
 
@@ -19,11 +19,7 @@ export default class HideFilePlugin extends Plugin implements HideItems {
 			await this.loadData()
 		);
 
-		const fileExplorer =
-			this.app.workspace.getLeavesOfType("file-explorer")[0];
-		this.fileExplorerView = fileExplorer?.view;
-
-		this.addSettingTab(new HideFileSettingTab(this.app, this));
+		this.addSettingTab(new HideFilesSettingTab(this.app, this, this));
 
 		this.registerEvent(
 			this.app.workspace.on("file-menu", () => this.updateFileExplorer())
@@ -37,17 +33,32 @@ export default class HideFilePlugin extends Plugin implements HideItems {
 		this.registerEvent(
 			this.app.vault.on("delete", () => this.updateFileExplorer())
 		);
-		this.app.workspace.onLayoutReady(() => this.updateFileExplorer());
+		this.registerEvent(
+			this.app.workspace.on("layout-change", () => {
+				this.initFileExplorerView();
+				this.updateFileExplorer();
+			})
+		);
+		
+		this.app.workspace.onLayoutReady(() => {
+			this.initFileExplorerView();
+			this.updateFileExplorer();
+		});
 	}
 
 	public onunload() {
 		this.settings = null;
 		this.updateFileExplorer();
 	}
-
+	
 	public async saveAndApplySettings() {
 		await this.saveData(this.settings);
 		this.updateFileExplorer();
+	}
+
+	private initFileExplorerView() {
+		const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
+		this.fileExplorerView = fileExplorer?.view;
 	}
 
 	private updateFileExplorer() {
@@ -76,12 +87,12 @@ export default class HideFilePlugin extends Plugin implements HideItems {
 	}
 
 	public addFile(name: string, callback: () => void) {
-		HideFilePlugin.addItem(name, callback, this.getHiddenFiles());
+		HideFilesPlugin.addItem(name, callback, this.getHiddenFiles());
 		this.saveAndApplySettings();
 	}
 
 	public addFolder(name: string, callback: () => void) {
-		HideFilePlugin.addItem(name, callback, this.getHiddenFolders());
+		HideFilesPlugin.addItem(name, callback, this.getHiddenFolders());
 		this.saveAndApplySettings();
 	}
 
@@ -140,7 +151,7 @@ export default class HideFilePlugin extends Plugin implements HideItems {
 		hidden: boolean,
 		callback: () => void
 	) {
-		HideFilePlugin.changeItemHidden(name, hidden, this.getHiddenFiles());
+		HideFilesPlugin.changeItemHidden(name, hidden, this.getHiddenFiles());
 		this.saveAndApplySettings();
 		callback();
 	}
@@ -150,7 +161,7 @@ export default class HideFilePlugin extends Plugin implements HideItems {
 		hidden: boolean,
 		callback: () => void
 	) {
-		HideFilePlugin.changeItemHidden(name, hidden, this.getHiddenFolders());
+		HideFilesPlugin.changeItemHidden(name, hidden, this.getHiddenFolders());
 		this.saveAndApplySettings();
 		callback();
 	}
